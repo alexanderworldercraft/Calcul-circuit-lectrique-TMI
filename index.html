@@ -47,7 +47,7 @@
 
   <div class="results" id="resultats"></div>
 
-  <script>
+<script>
   // Ajout de champs dynamiques pour les résistances
   function addResistance(type, groupId = 0) {
     const container = groupId > 0 
@@ -75,71 +75,102 @@
   }
 
   // Fonction de calcul
-  function calculer() {
-    const U = parseFloat(document.getElementById('tension').value) || 0;
+function calculer() {
+  const U = parseFloat(document.getElementById('tension').value) || 0;
 
-    // Récupération des résistances série
-    const Rs = [...document.querySelectorAll('.serie')].map(el => parseFloat(el.value)).filter(v => !isNaN(v));
-    const parallelGroups = document.querySelectorAll('.parallel-group');
-    
-    // Calcul de la résistance équivalente des groupes parallèles
-    let Req = 0;
-    let totalParallelResistance = 0;
-    let totalI = 0;
-    
-    // Calcul des résistances en série
-    const ReqSerie = Rs.reduce((acc, val) => acc + val, 0);
+  const Rs = [...document.querySelectorAll('.serie')].map(el => parseFloat(el.value)).filter(v => !isNaN(v));
+  const ReqSerie = Rs.reduce((acc, val) => acc + val, 0);
 
-    // Parcours des groupes parallèles
-    parallelGroups.forEach((group, idx) => {
-      const Rp = [...group.querySelectorAll('.parallele')].map(el => parseFloat(el.value)).filter(v => !isNaN(v));
-      if (Rp.length > 0) {
-        const ReqParallele = 1 / Rp.reduce((acc, val) => acc + (1 / val), 0);
-        totalParallelResistance += ReqParallele;
-      }
+  const parallelGroups = document.querySelectorAll('.parallel-group');
+  let totalParallelResistance = 0;
+  let I_total = 0;
+  let Us_serie = [];
+
+  let U_restant = U;
+  let groupsDetails = '';
+  let svgParts = ['<svg width="100%" height="200" xmlns="http://www.w3.org/2000/svg">'];
+
+  // Tension
+  svgParts.push(`<rect x="10" y="80" width="30" height="40" fill="lightblue"/><text x="15" y="100" font-size="12">U</text>`);
+
+  let x = 50;
+
+  // Résistances série
+  if (Rs.length) {
+    Us_serie = Rs.map(R => {
+      const u = (U / (ReqSerie + 1)).toFixed(2);
+      return u;
     });
 
-    // Résistance équivalente totale
-    Req = ReqSerie + totalParallelResistance;
-    const I_total = Req > 0 ? (U / Req) : 0;
-
-    // Calcul de la tension sur les résistances en série
-    const Us_serie = Rs.map(R => (I_total * R).toFixed(2));
-
-    // Calcul de la tension restante pour chaque groupe parallèle
-    let results = '';
-    parallelGroups.forEach((group, idx) => {
-      const Rp = [...group.querySelectorAll('.parallele')].map(el => parseFloat(el.value)).filter(v => !isNaN(v));
-      const U_restant = Rs.length > 0 ? (U - Us_serie.reduce((acc, val) => acc + parseFloat(val), 0)).toFixed(2) : U;
-
-      const Is_parallele = Rp.map(R => (U_restant / R).toFixed(2));
-
-      results += `
-        <p><strong>Groupe ${idx + 1} en parallèle :</strong></p>
-        <ul>
-          ${Rp.map((R, i) => `<li>R${i + 1} = ${R} Ω → U = ${U_restant} V, I = ${Is_parallele[i]} A</li>`).join('')}
-        </ul>
-      `;
+    Rs.forEach((R, i) => {
+      const u = Us_serie[i];
+      const iVal = (U / (ReqSerie + 1)).toFixed(2);
+      const p = (u * iVal).toFixed(2);
     });
-
-    // Calcul de la puissance totale
-    const P_total = (U * I_total).toFixed(2);
-
-    const output = document.getElementById('resultats');
-    output.innerHTML = `
-      <p><strong>Résistance équivalente (Req) :</strong> ${Req.toFixed(2)} Ω</p>
-      <p><strong>Courant total (I) :</strong> ${I_total.toFixed(2)} A</p>
-      <p><strong>Puissance totale (P) :</strong> ${P_total} W</p>
-
-      ${Rs.length ? `
-        <p><strong>Résistances en série :</strong></p>
-        <ul>
-          ${Rs.map((R, i) => `<li>R${i + 1} = ${R} Ω → U = ${Us_serie[i]} V, I = ${I_total.toFixed(2)} A</li>`).join('')}
-        </ul>` : ''}
-
-      ${results}
-    `;
   }
+
+  // Calcule la vraie I_total après avoir Req complet
+  parallelGroups.forEach((group, idx) => {
+    const Rp = [...group.querySelectorAll('.parallele')].map(el => parseFloat(el.value)).filter(v => !isNaN(v));
+    if (Rp.length) {
+      const ReqParallele = 1 / Rp.reduce((acc, val) => acc + (1 / val), 0);
+      totalParallelResistance += ReqParallele;
+    }
+  });
+
+  const ReqTotal = ReqSerie + totalParallelResistance;
+  I_total = ReqTotal > 0 ? (U / ReqTotal) : 0;
+  Us_serie = Rs.map(R => (I_total * R).toFixed(2));
+  U_restant = Rs.length > 0 ? (U - Us_serie.reduce((acc, val) => acc + parseFloat(val), 0)).toFixed(2) : U;
+
+  // Groupes en parallèle
+  parallelGroups.forEach((group, idx) => {
+    const Rp = [...group.querySelectorAll('.parallele')].map(el => parseFloat(el.value)).filter(v => !isNaN(v));
+    if (!Rp.length) return;
+
+    const ReqParallele = 1 / Rp.reduce((acc, val) => acc + (1 / val), 0);
+
+    groupsDetails += `<p><strong>Groupe ${idx + 1} en parallèle :</strong> (Req = ${ReqParallele.toFixed(2)} Ω)</p><ul>`;
+    svgParts.push(`<line x1="${x}" y1="100" x2="${x + 100}" y2="50" stroke="black"/>`);
+    svgParts.push(`<line x1="${x}" y1="100" x2="${x + 100}" y2="150" stroke="black"/>`);
+
+    Rp.forEach((R, i) => {
+      const I = (U_restant / R).toFixed(2);
+      const P = (I * U_restant).toFixed(2);
+
+      groupsDetails += `<li>R${i + 1} = ${R} Ω → U = ${U_restant} V, I = ${I} A, P = ${P} W</li>`;
+      svgParts.push(`<rect x="${x + 100}" y="${60 + (i * 40)}" width="30" height="30" fill="lightgreen"/>
+                     <text x="${x + 105}" y="${80 + (i * 40)}" font-size="12">R${i + 1}</text>`);
+    });
+    groupsDetails += `</ul>`;
+    x += 150;
+  });
+
+  const P_total = (U * I_total).toFixed(2);
+  svgParts.push(`<line x1="${x}" y1="100" x2="${x + 40}" y2="100" stroke="black"/>`);
+  svgParts.push(`</svg>`);
+
+  document.getElementById('resultats').innerHTML = `
+    <p><strong>Résistance équivalente totale :</strong> ${ReqTotal.toFixed(2)} Ω</p>
+    <p><strong>Courant total :</strong> ${I_total.toFixed(2)} A</p>
+    <p><strong>Puissance totale :</strong> ${P_total} W</p>
+
+    ${Rs.length ? `
+      <p><strong>Résistances en série :</strong></p>
+      <ul>
+        ${Rs.map((R, i) => {
+          const u = Us_serie[i];
+          const p = (u * I_total).toFixed(2);
+          return `<li>R${i + 1} = ${R} Ω → U = ${u} V, I = ${I_total.toFixed(2)} A, P = ${p} W</li>`;
+        }).join('')}
+      </ul>
+    ` : ''}
+
+    ${groupsDetails}
+    <h3>🧰 Schéma du circuit</h3>
+    ${svgParts.join('')}
+  `;
+}
 
   // Fonction pour réinitialiser tous les champs
   function reset() {
@@ -157,7 +188,6 @@
     document.getElementById('resultats').innerHTML = '';
   }
 </script>
- 
 
 </body>
 </html>
