@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Calculateur de circuits</title>
+  <style>
+    body { font-family: Arial; padding: 20px; background: #f9f9f9; }
+    h1 { color: #333; }
+    .section { margin-bottom: 20px; }
+    label, input, button { margin: 5px; }
+    input { width: 80px; }
+    .results { margin-top: 20px; background: #fff; padding: 10px; border: 1px solid #ccc; }
+    .parallel-group { margin-bottom: 10px; border: 1px solid #ccc; padding: 10px; }
+  </style>
+</head>
+<body>
+
+  <h1>🧮 Calculateur de circuits électriques</h1>
+
+  <div class="section">
+    <label>Tension U (Volts) :</label>
+    <input type="number" id="tension" placeholder="ex: 24">
+  </div>
+
+  <div class="section">
+    <h2>🔗 Résistances en série</h2>
+    <div id="serieInputs"></div>
+    <button onclick="addResistance('serie')">+ Ajouter résistance série</button>
+  </div>
+
+  <div class="section">
+    <h2>⛓️ Zones en parallèle</h2>
+    <div id="parallelGroups">
+      <div class="parallel-group" id="group1">
+        <h3>Groupe 1</h3>
+        <div id="paralleleInputs1"></div>
+        <button onclick="addResistance('parallele', 1)">+ Ajouter résistance parallèle</button>
+      </div>
+    </div>
+    <button onclick="addParallelGroup()">+ Ajouter un autre groupe parallèle</button>
+  </div>
+
+  <div class="section">
+    <button onclick="calculer()">⚡ Calculer</button>
+    <button onclick="reset()">🔄 Réinitialiser</button>
+  </div>
+
+  <div class="results" id="resultats"></div>
+
+  <script>
+    // Ajout de champs dynamiques pour les résistances
+    function addResistance(type, groupId = 0) {
+      const container = groupId > 0 
+        ? document.getElementById('paralleleInputs' + groupId)
+        : document.getElementById('serieInputs');
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.placeholder = 'R en Ω';
+      input.className = type;
+      container.appendChild(input);
+    }
+
+    // Ajout d'un groupe parallèle
+    function addParallelGroup() {
+      const groupCount = document.querySelectorAll('.parallel-group').length + 1;
+      const groupDiv = document.createElement('div');
+      groupDiv.className = 'parallel-group';
+      groupDiv.id = 'group' + groupCount;
+      groupDiv.innerHTML = `
+        <h3>Groupe ${groupCount}</h3>
+        <div id="paralleleInputs${groupCount}"></div>
+        <button onclick="addResistance('parallele', ${groupCount})">+ Ajouter résistance parallèle</button>
+      `;
+      document.getElementById('parallelGroups').appendChild(groupDiv);
+    }
+
+    // Fonction de calcul
+    function calculer() {
+      const U = parseFloat(document.getElementById('tension').value) || 0;
+
+      // Récupération des résistances série
+      const Rs = [...document.querySelectorAll('.serie')].map(el => parseFloat(el.value)).filter(v => !isNaN(v));
+      const parallelGroups = document.querySelectorAll('.parallel-group');
+      
+      // Calcul de la résistance équivalente des groupes parallèles
+      let Req = 0;
+      let totalParallelResistance = 0;
+      let totalI = 0;
+      
+      // Calcul des résistances en série
+      const ReqSerie = Rs.reduce((acc, val) => acc + val, 0);
+
+      // Parcours des groupes parallèles
+      parallelGroups.forEach((group, idx) => {
+        const Rp = [...group.querySelectorAll('.parallele')].map(el => parseFloat(el.value)).filter(v => !isNaN(v));
+        if (Rp.length > 0) {
+          const ReqParallele = 1 / Rp.reduce((acc, val) => acc + (1 / val), 0);
+          totalParallelResistance += ReqParallele;
+        }
+      });
+
+      // Résistance équivalente totale
+      Req = ReqSerie + totalParallelResistance;
+      const I_total = Req > 0 ? (U / Req) : 0;
+
+      // Calcul de la tension sur les résistances en série
+      const Us_serie = Rs.map(R => (I_total * R).toFixed(2));
+
+      // Calcul de la tension restante pour chaque groupe parallèle
+      let results = '';
+      parallelGroups.forEach((group, idx) => {
+        const Rp = [...group.querySelectorAll('.parallele')].map(el => parseFloat(el.value)).filter(v => !isNaN(v));
+        const U_restant = Rs.length > 0 ? (U - Us_serie.reduce((acc, val) => acc + parseFloat(val), 0)).toFixed(2) : U;
+
+        const Is_parallele = Rp.map(R => (U_restant / R).toFixed(2));
+
+        results += `
+          <p><strong>Groupe ${idx + 1} en parallèle :</strong></p>
+          <ul>
+            ${Rp.map((R, i) => `<li>R${i + 1} = ${R} Ω → U = ${U_restant} V, I = ${Is_parallele[i]} A</li>`).join('')}
+          </ul>
+        `;
+      });
+
+      const output = document.getElementById('resultats');
+      output.innerHTML = `
+        <p><strong>Résistance équivalente (Req) :</strong> ${Req.toFixed(2)} Ω</p>
+        <p><strong>Courant total (I) :</strong> ${I_total.toFixed(2)} A</p>
+
+        ${Rs.length ? `
+          <p><strong>Résistances en série :</strong></p>
+          <ul>
+            ${Rs.map((R, i) => `<li>R${i + 1} = ${R} Ω → U = ${Us_serie[i]} V, I = ${I_total.toFixed(2)} A</li>`).join('')}
+          </ul>` : ''}
+
+        ${results}
+      `;
+    }
+
+    // Fonction pour réinitialiser tous les champs
+    function reset() {
+      // Réinitialisation des champs de tension et résistances
+      document.getElementById('tension').value = '';
+      document.getElementById('serieInputs').innerHTML = '';
+      document.getElementById('parallelGroups').innerHTML = `
+        <div class="parallel-group" id="group1">
+          <h3>Groupe 1</h3>
+          <div id="paralleleInputs1"></div>
+          <button onclick="addResistance('parallele', 1)">+ Ajouter résistance parallèle</button>
+        </div>
+      `;
+      // Réinitialisation des résultats
+      document.getElementById('resultats').innerHTML = '';
+    }
+  </script>
+
+</body>
+</html>
