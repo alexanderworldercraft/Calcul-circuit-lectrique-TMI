@@ -1,253 +1,218 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" class="dark">
 
 <head>
-    <meta charset="UTF-8">
-    <title>Calculateur de circuits</title>
-    <style>
-        body {
-            font-family: Arial;
-            padding: 20px;
-            background: #f9f9f9;
-        }
-
-        h1 {
-            color: #333;
-        }
-
-        .section {
-            margin-bottom: 20px;
-        }
-
-        label,
-        input,
-        button {
-            margin: 5px;
-        }
-
-        input {
-            width: 80px;
-        }
-
-        .results {
-            margin-top: 20px;
-            background: #fff;
-            padding: 10px;
-            border: 1px solid #ccc;
-        }
-
-        .parallel-group {
-            margin-bottom: 10px;
-            border: 1px solid #ccc;
-            padding: 10px;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <title>Calculateur de circuits</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
 
-<body>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen p-4 md:p-8 font-sans">
 
-    <h1>🧮 Calculateur de circuits électriques</h1>
+  <h1 class="text-3xl md:text-4xl font-extrabold mb-8">🧮 Calculateur de circuits électriques</h1>
 
-    <div class="section">
-        <label>Tension U (Volts) :</label>
-        <input type="number" id="tension" placeholder="ex: 24">
-    </div>
+  <!-- Section Tension -->
+  <div class="mb-8">
+    <label class="block mb-2 font-semibold">Tension U (Volts) :</label>
+    <input type="number" id="tension" placeholder="ex: 24"
+      class="w-32 p-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+  </div>
 
-    <div class="section">
-        <h2>🔗 Résistances en série</h2>
-        <div id="serieInputs"></div>
-        <button onclick="addResistance('serie')">+ Ajouter résistance série</button>
-    </div>
+  <!-- Résistances série -->
+  <div class="mb-8">
+    <h2 class="text-2xl font-bold mb-2">🔗 Résistances en série</h2>
+    <div id="serieInputs" class="flex flex-wrap gap-2 mb-3"></div>
+    <button onclick="addResistance('serie')"
+      class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow transition">
+      ➕ Ajouter résistance série
+    </button>
+  </div>
 
-    <div class="section">
-        <h2>⛓️ Zones en parallèle</h2>
-        <div id="parallelGroups">
-            <div class="parallel-group" id="group1">
-                <h3>Groupe 1</h3>
-                <div id="paralleleInputs1"></div>
-                <button onclick="addResistance('parallele', 1)">+ Ajouter résistance parallèle</button>
-            </div>
-        </div>
-        <button onclick="addParallelGroup()">+ Ajouter un autre groupe parallèle</button>
-    </div>
-
-    <div class="section">
-        <button onclick="calculer()">⚡ Calculer</button>
-        <button onclick="reset()">🔄 Réinitialiser</button>
-    </div>
-
-    <div class="results" id="resultats"></div>
-
-    <h3>🧰 Schéma du circuit (schéma logique)</h3>
-    <canvas id="schemaCanvas" width="1000" height="300" style="border:1px solid #ccc;"></canvas>
-
-    <script>
-        // Ajout de champs dynamiques pour les résistances
-        function addResistance(type, groupId = 0) {
-            const container = groupId > 0
-                ? document.getElementById('paralleleInputs' + groupId)
-                : document.getElementById('serieInputs');
-            const input = document.createElement('input');
-            input.type = 'number';
-            input.placeholder = 'R en Ω';
-            input.className = type;
-            container.appendChild(input);
-        }
-
-        // Ajout d'un groupe parallèle
-        function addParallelGroup() {
-            const groupCount = document.querySelectorAll('.parallel-group').length + 1;
-            const groupDiv = document.createElement('div');
-            groupDiv.className = 'parallel-group';
-            groupDiv.id = 'group' + groupCount;
-            groupDiv.innerHTML = `
-      <h3>Groupe ${groupCount}</h3>
-      <div id="paralleleInputs${groupCount}"></div>
-      <button onclick="addResistance('parallele', ${groupCount})">+ Ajouter résistance parallèle</button>
-    `;
-            document.getElementById('parallelGroups').appendChild(groupDiv);
-        }
-
-        // Fonction de calcul
-        function calculer() {
-            const U = parseFloat(document.getElementById('tension').value) || 0;
-
-            const Rs = [...document.querySelectorAll('.serie')].map(el => parseFloat(el.value)).filter(v => !isNaN(v));
-            const ReqSerie = Rs.reduce((acc, val) => acc + val, 0);
-
-            const parallelGroups = document.querySelectorAll('.parallel-group');
-            const allReqParalleles = [];
-
-            // Calcul des Req de chaque groupe parallèle
-            parallelGroups.forEach(group => {
-                const Rp = [...group.querySelectorAll('.parallele')].map(el => parseFloat(el.value)).filter(v => !isNaN(v));
-                if (Rp.length > 0) {
-                    const ReqParallele = 1 / Rp.reduce((acc, val) => acc + (1 / val), 0);
-                    allReqParalleles.push({ Req: ReqParallele, Rp });
-                }
-            });
-
-            const ReqTotal = ReqSerie + allReqParalleles.reduce((acc, g) => acc + g.Req, 0);
-            const I_total = ReqTotal > 0 ? (U / ReqTotal) : 0;
-
-            const Us_serie = Rs.map(R => (I_total * R).toFixed(2));
-
-            let results = `
-    <p><strong>Résistance équivalente totale :</strong> ${ReqTotal.toFixed(3)} Ω</p>
-    <p><strong>Courant total :</strong> ${I_total.toFixed(3)} A</p>
-    <p><strong>Puissance totale :</strong> ${(U * I_total).toFixed(2)} W</p>
-  `;
-
-            if (Rs.length) {
-                results += `<p><strong>Résistances en série :</strong></p><ul>`;
-                Rs.forEach((R, i) => {
-                    const U_R = I_total * R;
-                    const P_R = U_R * I_total;
-                    results += `<li>R${i + 1} = ${R} Ω → U = ${U_R.toFixed(2)} V, I = ${I_total.toFixed(2)} A, P = ${P_R.toFixed(2)} W</li>`;
-                });
-                results += `</ul>`;
-            }
-
-            // Affichage des groupes parallèles avec calcul correct de U_groupe
-            let tensionConsommée = Rs.reduce((acc, R) => acc + (I_total * R), 0);
-            allReqParalleles.forEach((groupe, idx) => {
-                const U_groupe = I_total * groupe.Req;
-                tensionConsommée += U_groupe;
-
-                results += `<p><strong>Groupe ${idx + 1} en parallèle :</strong> (Req = ${groupe.Req.toFixed(3)} Ω, U = ${U_groupe.toFixed(2)} V)</p><ul>`;
-
-                groupe.Rp.forEach((R, i) => {
-                    const I_R = U_groupe / R;
-                    const P_R = I_R * U_groupe;
-                    results += `<li>R${i + 1} = ${R} Ω → U = ${U_groupe.toFixed(2)} V, I = ${I_R.toFixed(2)} A, P = ${P_R.toFixed(2)} W</li>`;
-                });
-
-                results += `</ul>`;
-            });
-
-            dessinerSchemaAvecFabric(Rs, parallelGroups);
-
-            document.getElementById('resultats').innerHTML = results;
-        }
-
-
-        // Fonction pour réinitialiser tous les champs
-        function reset() {
-            // Réinitialisation des champs de tension et résistances
-            document.getElementById('tension').value = '';
-            document.getElementById('serieInputs').innerHTML = '';
-            document.getElementById('parallelGroups').innerHTML = `
-      <div class="parallel-group" id="group1">
-        <h3>Groupe 1</h3>
-        <div id="paralleleInputs1"></div>
-        <button onclick="addResistance('parallele', 1)">+ Ajouter résistance parallèle</button>
+  <!-- Zones en parallèle -->
+  <div class="mb-8">
+    <h2 class="text-2xl font-bold mb-2">⛓️ Zones en parallèle</h2>
+    <div id="parallelGroups" class="space-y-4">
+      <div class="border border-gray-300 dark:border-gray-600 p-4 rounded-xl bg-white dark:bg-gray-800 shadow-sm"
+        id="group1">
+        <h3 class="font-semibold mb-2">Groupe 1</h3>
+        <div id="paralleleInputs1" class="flex flex-wrap gap-2 mb-2"></div>
+        <button onclick="addResistance('parallele', 1)"
+          class="inline-flex items-center gap-2 px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-md transition">
+          ➕ Ajouter résistance parallèle
+        </button>
       </div>
-    `;
-            // Réinitialisation des résultats
-            document.getElementById('resultats').innerHTML = '';
+    </div>
+    <button onclick="addParallelGroup()"
+      class="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow transition">
+      ➕ Ajouter un autre groupe parallèle
+    </button>
+  </div>
+
+  <!-- Boutons Calcul et Reset -->
+  <div class="flex flex-wrap gap-4 mb-8">
+    <button onclick="calculer()"
+      class="inline-flex items-center gap-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg shadow transition">
+      ⚡ Calculer
+    </button>
+    <button onclick="reset()"
+      class="inline-flex items-center gap-2 px-6 py-2 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded-lg shadow transition">
+      🔄 Réinitialiser
+    </button>
+  </div>
+
+  <!-- Résultats -->
+  <div id="resultats"
+    class="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-5 rounded-xl shadow-sm mb-8 text-sm md:text-base"></div>
+
+  <!-- Schéma -->
+  <div>
+    <h3 class="text-xl font-bold mb-3">🧰 Schéma du circuit (schéma logique)</h3>
+    <div class="overflow-auto rounded-xl shadow-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
+      <canvas id="schemaCanvas" width="1000" height="300" class="w-full block"></canvas>
+    </div>
+  </div>
+
+  <!-- FabricJS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+
+  <!-- Script logique -->
+  <script>
+    function addResistance(type, groupId = 0) {
+      const container = groupId > 0
+        ? document.getElementById('paralleleInputs' + groupId)
+        : document.getElementById('serieInputs');
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.placeholder = 'R en Ω';
+      input.className = type + ' w-28 p-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm focus:outline-none';
+      container.appendChild(input);
+    }
+
+    function addParallelGroup() {
+      const groupCount = document.querySelectorAll('.parallel-group').length + 1;
+      const groupDiv = document.createElement('div');
+      groupDiv.className = 'parallel-group border border-gray-300 dark:border-gray-600 p-4 rounded-xl bg-white dark:bg-gray-800 shadow-sm';
+      groupDiv.id = 'group' + groupCount;
+      groupDiv.innerHTML = `
+        <h3 class="font-semibold mb-2">Groupe ${groupCount}</h3>
+        <div id="paralleleInputs${groupCount}" class="flex flex-wrap gap-2 mb-2"></div>
+        <button onclick="addResistance('parallele', ${groupCount})"
+          class="inline-flex items-center gap-2 px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-md transition">➕ Ajouter résistance parallèle</button>`;
+      document.getElementById('parallelGroups').appendChild(groupDiv);
+    }
+
+    function calculer() {
+      const U = parseFloat(document.getElementById('tension').value) || 0;
+      const Rs = [...document.querySelectorAll('.serie')].map(el => parseFloat(el.value)).filter(v => !isNaN(v));
+      const ReqSerie = Rs.reduce((acc, val) => acc + val, 0);
+
+      const parallelGroups = document.querySelectorAll('.parallel-group');
+      const allReqParalleles = [];
+
+      parallelGroups.forEach(group => {
+        const Rp = [...group.querySelectorAll('.parallele')].map(el => parseFloat(el.value)).filter(v => !isNaN(v));
+        if (Rp.length > 0) {
+          const ReqParallele = 1 / Rp.reduce((acc, val) => acc + (1 / val), 0);
+          allReqParalleles.push({ Req: ReqParallele, Rp });
         }
+      });
 
-        function dessinerSchemaAvecFabric(Rs, parallelGroups) {
-            const canvas = new fabric.Canvas('schemaCanvas');
-            canvas.clear();
+      const ReqTotal = ReqSerie + allReqParalleles.reduce((acc, g) => acc + g.Req, 0);
+      const I_total = ReqTotal > 0 ? (U / ReqTotal) : 0;
+      const Us_serie = Rs.map(R => (I_total * R).toFixed(2));
 
-            let x = 50;
-            const y = 100;
-            const spacing = 100;
+      let results = `
+        <p><strong>Résistance équivalente totale :</strong> ${ReqTotal.toFixed(3)} Ω</p>
+        <p><strong>Courant total :</strong> ${I_total.toFixed(3)} A</p>
+        <p><strong>Puissance totale :</strong> ${(U * I_total).toFixed(2)} W</p>`;
 
-            // Générateur
-            canvas.add(new fabric.Rect({ left: x, top: y - 25, width: 20, height: 50, fill: 'lightblue' }));
-            canvas.add(new fabric.Text('U', { left: x + 5, top: y - 10, fontSize: 16 }));
-            x += 30;
+      if (Rs.length) {
+        results += `<p class="mt-2"><strong>Résistances en série :</strong></p><ul class="list-disc pl-5">`;
+        Rs.forEach((R, i) => {
+          const U_R = I_total * R;
+          const P_R = U_R * I_total;
+          results += `<li>R${i + 1} = ${R} Ω → U = ${U_R.toFixed(2)} V, I = ${I_total.toFixed(2)} A, P = ${P_R.toFixed(2)} W</li>`;
+        });
+        results += `</ul>`;
+      }
 
-            // Résistances série
-            Rs.forEach((R, i) => {
-                canvas.add(new fabric.Rect({ left: x, top: y - 20, width: 40, height: 40, fill: 'orange' }));
-                canvas.add(new fabric.Text(`R${i + 1}`, { left: x + 5, top: y - 5, fontSize: 14 }));
-                x += spacing;
-            });
+      let tensionConsommée = Rs.reduce((acc, R) => acc + (I_total * R), 0);
+      allReqParalleles.forEach((groupe, idx) => {
+        const U_groupe = I_total * groupe.Req;
+        tensionConsommée += U_groupe;
+        results += `<p class="mt-2"><strong>Groupe ${idx + 1} en parallèle :</strong> (Req = ${groupe.Req.toFixed(3)} Ω, U = ${U_groupe.toFixed(2)} V)</p><ul class="list-disc pl-5">`;
+        groupe.Rp.forEach((R, i) => {
+          const I_R = U_groupe / R;
+          const P_R = I_R * U_groupe;
+          results += `<li>R${i + 1} = ${R} Ω → U = ${U_groupe.toFixed(2)} V, I = ${I_R.toFixed(2)} A, P = ${P_R.toFixed(2)} W</li>`;
+        });
+        results += `</ul>`;
+      });
 
-            // Groupes en parallèle
-            parallelGroups.forEach((group, groupIndex) => {
-                const resistances = [...group.querySelectorAll('.parallele')]
-                    .map(el => parseFloat(el.value))
-                    .filter(v => !isNaN(v));
+      dessinerSchemaAvecFabric(Rs, parallelGroups);
+      document.getElementById('resultats').innerHTML = results;
+    }
 
-                if (!resistances.length) return;
+    function reset() {
+      document.getElementById('tension').value = '';
+      document.getElementById('serieInputs').innerHTML = '';
+      document.getElementById('parallelGroups').innerHTML = `
+        <div class="parallel-group border border-gray-300 dark:border-gray-600 p-4 rounded-xl bg-white dark:bg-gray-800 shadow-sm" id="group1">
+          <h3 class="font-semibold mb-2">Groupe 1</h3>
+          <div id="paralleleInputs1" class="flex flex-wrap gap-2 mb-2"></div>
+          <button onclick="addResistance('parallele', 1)"
+            class="inline-flex items-center gap-2 px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-md transition">➕ Ajouter résistance parallèle</button>
+        </div>`;
+      document.getElementById('resultats').innerHTML = '';
+    }
 
-                const branchStartX = x;
-                const branchTopY = y - 60;
-                const branchBottomY = y + 60;
+    function dessinerSchemaAvecFabric(Rs, parallelGroups) {
+      const canvas = new fabric.Canvas('schemaCanvas');
+      canvas.clear();
 
-                // Lignes de branchement
-                canvas.add(new fabric.Line([x, y, x, branchTopY], { stroke: 'black' }));
-                canvas.add(new fabric.Line([x, y, x, branchBottomY], { stroke: 'black' }));
+      let x = 50;
+      const y = 100;
+      const spacing = 100;
 
-                // Chaque résistance en parallèle
-                resistances.forEach((R, j) => {
-                    const yOffset = branchTopY + j * 40;
-                    canvas.add(new fabric.Rect({ left: x + 30, top: yOffset, width: 40, height: 30, fill: 'lightgreen' }));
-                    canvas.add(new fabric.Text(`G${groupIndex + 1}-R${j + 1}`, { left: x + 35, top: yOffset + 7, fontSize: 12 }));
-                    canvas.add(new fabric.Line([x, yOffset + 15, x + 30, yOffset + 15], { stroke: 'black' }));
-                    canvas.add(new fabric.Line([x + 70, yOffset + 15, x + 100, yOffset + 15], { stroke: 'black' }));
-                });
+      canvas.add(new fabric.Rect({ left: x, top: y - 25, width: 20, height: 50, fill: 'lightblue' }));
+      canvas.add(new fabric.Text('U', { left: x + 5, top: y - 10, fontSize: 16 }));
+      x += 30;
 
-                // Rejoint la ligne principale
-                canvas.add(new fabric.Line([x + 100, branchTopY, x + 100, y], { stroke: 'black' }));
-                canvas.add(new fabric.Line([x + 100, branchBottomY, x + 100, y], { stroke: 'black' }));
+      Rs.forEach((R, i) => {
+        canvas.add(new fabric.Rect({ left: x, top: y - 20, width: 40, height: 40, fill: 'orange' }));
+        canvas.add(new fabric.Text(`R${i + 1}`, { left: x + 5, top: y - 5, fontSize: 14 }));
+        x += spacing;
+      });
 
-                x += 130;
-            });
+      parallelGroups.forEach((group, groupIndex) => {
+        const resistances = [...group.querySelectorAll('.parallele')].map(el => parseFloat(el.value)).filter(v => !isNaN(v));
+        if (!resistances.length) return;
 
-            // Fermeture du circuit
-            canvas.add(new fabric.Line([x, y, x + 50, y], { stroke: 'black' }));
-            canvas.add(new fabric.Text('GND', { left: x + 55, top: y - 10, fontSize: 14 }));
-        }
+        const branchStartX = x;
+        const branchTopY = y - 60;
+        const branchBottomY = y + 60;
 
-    </script>
+        canvas.add(new fabric.Line([x, y, x, branchTopY], { stroke: 'black' }));
+        canvas.add(new fabric.Line([x, y, x, branchBottomY], { stroke: 'black' }));
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+        resistances.forEach((R, j) => {
+          const yOffset = branchTopY + j * 40;
+          canvas.add(new fabric.Rect({ left: x + 30, top: yOffset, width: 40, height: 30, fill: 'lightgreen' }));
+          canvas.add(new fabric.Text(`G${groupIndex + 1}-R${j + 1}`, { left: x + 35, top: yOffset + 7, fontSize: 12 }));
+          canvas.add(new fabric.Line([x, yOffset + 15, x + 30, yOffset + 15], { stroke: 'black' }));
+          canvas.add(new fabric.Line([x + 70, yOffset + 15, x + 100, yOffset + 15], { stroke: 'black' }));
+        });
 
+        canvas.add(new fabric.Line([x + 100, branchTopY, x + 100, y], { stroke: 'black' }));
+        canvas.add(new fabric.Line([x + 100, branchBottomY, x + 100, y], { stroke: 'black' }));
+
+        x += 130;
+      });
+
+      canvas.add(new fabric.Line([x, y, x + 50, y], { stroke: 'black' }));
+      canvas.add(new fabric.Text('GND', { left: x + 55, top: y - 10, fontSize: 14 }));
+    }
+  </script>
 </body>
 
 </html>
